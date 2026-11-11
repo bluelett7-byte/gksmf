@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>초등학생을 위한 영어 스펠링 블록 맞추기</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Fredoka for playful text, Gowun Dodum for Korean) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti for Celebration -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            yellow: '#FFD166',
+                            pink: '#FF6B6B',
+                            blue: '#4ECDC4',
+                            purple: '#A663CC',
+                            green: '#06D6A0',
+                            bg: '#F8F9FA'
+                        }
+                    },
+                    fontFamily: {
+                        fredoka: ['Fredoka', 'sans-serif'],
+                        gowun: ['Gowun Dodum', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Gowun Dodum', 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .font-english {
+            font-family: 'Fredoka', cursive, sans-serif;
+        }
+
+        /* 3D Button Style for Blocks */
+        .block-3d {
+            transition: all 0.15s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.15);
+        }
+        .block-3d:active, .block-3d.dragging {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+        }
+
+        /* Slot Animation */
+        .slot-filled {
+            animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.6); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Shake animation for wrong answer */
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        /* Pulse highlight for slots */
+        .slot-hover {
+            border-color: #4ECDC4 !important;
+            background-color: #E6FFFA !important;
+            transform: scale(1.05);
+        }
+
+        /* Custom Scrollbar for letter container */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-amber-50 min-h-screen flex flex-col justify-between overflow-x-hidden text-slate-800">
+
+    <!-- Top Header / Bar -->
+    <header class="w-full max-w-4xl mx-auto px-4 pt-4 flex justify-between items-center z-10">
+        <!-- Logo & Title -->
+        <div class="flex items-center gap-3">
+            <div class="bg-brand-yellow p-3 rounded-2xl shadow-md border-2 border-amber-300 transform -rotate-3">
+                <i class="fa-solid fa-shapes text-2xl text-amber-700"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold font-english text-amber-900 tracking-wide">Spelling Blocks</h1>
+                <p class="text-xs text-amber-700 font-semibold">재미있는 신나는 영어 단어 맞추기</p>
+            </div>
+        </div>
+
+        <!-- Score & Combo & Audio Controls -->
+        <div class="flex items-center gap-3">
+            <!-- Sound Toggle -->
+            <button id="soundBtn" onclick="toggleSound()" class="w-10 h-10 rounded-xl bg-white shadow border border-amber-200 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition">
+                <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+            </button>
+
+            <!-- Score Badge -->
+            <div class="bg-white px-4 py-1.5 rounded-2xl shadow border border-amber-200 flex items-center gap-2">
+                <i class="fa-solid fa-star text-yellow-400 text-lg"></i>
+                <span id="scoreText" class="font-english font-bold text-lg text-slate-700">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="w-full max-w-3xl mx-auto px-4 my-auto flex flex-col items-center gap-6 py-4">
+        
+        <!-- Progress Bar & Combo -->
+        <div class="w-full max-w-md flex flex-col items-center gap-1">
+            <div class="w-full flex justify-between items-center text-xs font-bold text-amber-800 px-1">
+                <span id="progressText">문제 1 / 25</span>
+                <span id="comboBadge" class="hidden bg-pink-500 text-white px-2 py-0.5 rounded-full text-xs font-english animate-bounce">
+                    🔥 <span id="comboCount">2</span> COMBO!
+                </span>
+            </div>
+            <div class="w-full h-3 bg-amber-200/70 rounded-full overflow-hidden p-0.5 shadow-inner">
+                <div id="progressBar" class="h-full bg-gradient-to-r from-brand-blue to-brand-green rounded-full transition-all duration-300" style="width: 4%;"></div>
+            </div>
+        </div>
+
+        <!-- Word Card (Korean Meaning & Category Hint) -->
+        <div class="w-full bg-white rounded-3xl p-6 shadow-xl border-4 border-amber-200 text-center relative overflow-hidden flex flex-col items-center gap-2">
+            <!-- Category Tag -->
+            <span id="categoryTag" class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold tracking-wider">
+                학교 생활
+            </span>
+
+            <!-- Korean Word Display -->
+            <div class="flex items-center gap-3 my-1">
+                <h2 id="koreanWord" class="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">
+                    수업, 반
+                </h2>
+                <!-- Pronounce TTS Button & Speed Control -->
+                <div class="flex items-center gap-1 bg-indigo-50/80 p-1 rounded-full border border-indigo-100 shadow-sm">
+                    <button onclick="speakCurrentWord()" class="w-10 h-10 rounded-full bg-indigo-500 text-white hover:bg-indigo-600 flex items-center justify-center transition shadow-sm active:scale-95" title="발음 듣기">
+                        <i class="fa-solid fa-volume-low text-base"></i>
+                    </button>
+                    <!-- Speech Rate Selector -->
+                    <select id="speechRateSelect" onchange="changeSpeechRate(this.value)" class="bg-white text-indigo-700 text-xs font-bold py-1.5 px-2 rounded-full border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                        <option value="0.65">🐢 0.65x</option>
+                        <option value="0.85" selected>▶️ 0.85x</option>
+                        <option value="1.05">🐇 1.05x</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Visual Hint Icon/Emoji -->
+            <p id="hintText" class="text-xs text-slate-400 font-medium">스펠링 블록을 순서대로 빈칸에 끌어다 놓으세요!</p>
+        </div>
+
+        <!-- CENTER: Target Slots Area (빈칸 박스) -->
+        <div class="w-full py-4 flex flex-col items-center min-h-[120px] justify-center">
+            <div id="slotsContainer" class="flex flex-wrap justify-center gap-2 md:gap-3 px-2 transition-transform duration-200">
+                <!-- Dynamic Slot Boxes will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Action Controls (Reset & Hint) -->
+        <div class="flex gap-3">
+            <button onclick="resetCurrentSlots()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-bold rounded-xl shadow-sm transition flex items-center gap-2 active:scale-95">
+                <i class="fa-solid fa-rotate-left"></i> 다시하기
+            </button>
+            <button onclick="giveHint()" class="px-4 py-2 bg-amber-200 hover:bg-amber-300 text-amber-800 text-sm font-bold rounded-xl shadow-sm transition flex items-center gap-2 active:scale-95">
+                <i class="fa-solid fa-lightbulb text-amber-600"></i> 힌트 보기
+            </button>
+        </div>
+
+        <!-- BOTTOM: Letter Blocks Pool (알파벳 블록 나열) -->
+        <div class="w-full bg-white/80 backdrop-blur-sm rounded-3xl p-5 shadow-lg border-2 border-amber-100">
+            <p class="text-xs font-bold text-slate-400 mb-3 text-center uppercase tracking-wider font-english">
+                <i class="fa-solid fa-hand-pointer mr-1"></i> Drag or Click Letter Blocks
+            </p>
+            <div id="blocksContainer" class="flex flex-wrap justify-center items-center gap-2 md:gap-3 min-h-[70px]">
+                <!-- Dynamic Letter Blocks will be generated here -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full text-center py-3 text-xs text-amber-700/60 font-medium">
+        초등 영어 필수 단어 스펠링 맞추기 게임 &copy; 2026
+    </footer>
+
+    <!-- Clear / Completion Modal -->
+    <div id="completeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border-4 border-amber-300 transform transition-all scale-95 animate-popIn">
+            <div class="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-yellow-300 text-yellow-500 text-4xl shadow-inner">
+                🏆
+            </div>
+            <h3 class="text-2xl font-bold text-slate-800 mb-1">참 잘했어요!</h3>
+            <p class="text-sm text-slate-500 mb-4">모든 영어 단어 스펠링을 마스터했습니다!</p>
+
+            <!-- Final Stats -->
+            <div class="bg-amber-50 rounded-2xl p-4 mb-6 border border-amber-200 flex justify-around">
+                <div>
+                    <p class="text-xs text-amber-600 font-bold">최종 점수</p>
+                    <p id="finalScore" class="text-2xl font-bold font-english text-amber-900">0</p>
+                </div>
+                <div class="border-r border-amber-200"></div>
+                <div>
+                    <p class="text-xs text-amber-600 font-bold">최대 콤보</p>
+                    <p id="maxComboText" class="text-2xl font-bold font-english text-pink-600">0</p>
+                </div>
+            </div>
+
+            <button onclick="restartGame()" class="w-full py-3.5 bg-brand-green hover:bg-emerald-500 text-white font-bold rounded-2xl shadow-lg border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition text-lg">
+                다시 도전하기 <i class="fa-solid fa-play ml-2 text-sm"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast / Audio & Game Logic -->
+    <script>
+        // 1. 단어 데이터 베이스 (요청받은 단어 목록)
+        const wordList = [
+            { english: "Class", korean: "수업, 반", category: "학교 생활" },
+            { english: "Homework", korean: "숙제", category: "학교 생활" },
+            { english: "Teacher", korean: "선생님", category: "사람" },
+            { english: "Friend", korean: "친구", category: "사람" },
+            { english: "Desk", korean: "책상", category: "학용품/가구" },
+            { english: "Chair", korean: "의자", category: "학용품/가구" },
+            { english: "Pencil", korean: "연필", category: "학용품/가구" },
+            { english: "Eraser", korean: "지우개", category: "학용품/가구" },
+            { english: "Happy", korean: "행복한", category: "감정" },
+            { english: "Sad", korean: "슬픈", category: "감정" },
+            { english: "Angry", korean: "화난", category: "감정" },
+            { english: "Tired", korean: "피곤한", category: "감정" },
+            { english: "English", korean: "영어", category: "교과 과목" },
+            { english: "Math", korean: "수학", category: "교과 과목" },
+            { english: "Music", korean: "음악", category: "교과 과목" },
+            { english: "P.E.", korean: "체육", category: "교과 과목" },
+            { english: "Drink", korean: "마시다", category: "행동" },
+            { english: "Study", korean: "공부하다", category: "행동" },
+            { english: "Play", korean: "놀다, (악기를) 연주하다", category: "행동" },
+            { english: "Read", korean: "읽다", category: "행동" },
+            { english: "Write", korean: "쓰다", category: "행동" },
+            { english: "Sleep", korean: "잠자다", category: "행동" },
+            { english: "Weather", korean: "날씨", category: "날씨" },
+            { english: "Sunny", korean: "화창한", category: "날씨" },
+            { english: "Rainy", korean: "비가 오는", category: "날씨" },
+            { english: "Cloudy", korean: "흐린", category: "날씨" }
+        ];
+
+        // Shuffled Question Queue
+        let shuffledWordList = [];
+
+        // Speech Synthesis Rate (default 0.85)
+        let speechRate = 0.85;
+
+        // Colorful palette for letters
+        const blockColors = [
+            'bg-rose-400 text-white border-rose-500',
+            'bg-sky-400 text-white border-sky-500',
+            'bg-amber-400 text-white border-amber-500',
+            'bg-emerald-400 text-white border-emerald-500',
+            'bg-purple-400 text-white border-purple-500',
+            'bg-indigo-400 text-white border-indigo-500',
+            'bg-pink-400 text-white border-pink-500',
+            'bg-teal-400 text-white border-teal-500'
+        ];
+
+        // State Variables
+        let currentIndex = 0;
+        let score = 0;
+        let combo = 0;
+        let maxCombo = 0;
+        let soundEnabled = true;
+        let currentWordObj = null;
+        let userSlots = []; // Slots state: array of null or block object
+        let availableBlocks = []; // Letter blocks state
+
+        // Web Audio API Context for sound effects
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        // Play synthetic sound effects
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else if (type === 'correct') {
+                    // Happy chord
+                    [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.type = 'triangle';
+                        o.frequency.setValueAtTime(freq, now + idx * 0.08);
+                        g.gain.setValueAtTime(0.2, now + idx * 0.08);
+                        g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
+                        o.start(now + idx * 0.08);
+                        o.stop(now + idx * 0.08 + 0.3);
+                    });
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.linearRampToValueAtTime(110, now + 0.25);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'pop') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(300, now + 0.08);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                }
+            } catch (e) {
+                console.log("Audio play error:", e);
+            }
+        }
+
+        // Toggle Sound ON/OFF
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            const btn = document.getElementById('soundBtn');
+            if (soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                btn.classList.remove('opacity-50');
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark';
+                btn.classList.add('opacity-50');
+            }
+        }
+
+        // Change Speech Rate Handler
+        function changeSpeechRate(rateVal) {
+            speechRate = parseFloat(rateVal);
+            speakCurrentWord();
+        }
+
+        // TTS Pronunciation Function
+        function speakCurrentWord() {
+            if (!currentWordObj) return;
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Clear previous speech queue
+                let textToSpeak = currentWordObj.english;
+                if (textToSpeak === "P.E.") textToSpeak = "P E";
+
+                const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utterance.lang = 'en-US';
+                utterance.rate = speechRate; // Use selected speech rate
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Shuffle Array (Fisher-Yates)
+        function shuffle(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Initialize Game
+        function initGame() {
+            currentIndex = 0;
+            score = 0;
+            combo = 0;
+            maxCombo = 0;
+            // 1. Randomize question order on game start
+            shuffledWordList = shuffle(wordList);
+            updateScoreUI();
+            loadStage();
+        }
+
+        // Load stage for current index
+        function loadStage() {
+            if (currentIndex >= shuffledWordList.length) {
+                showCompletionModal();
+                return;
+            }
+
+            currentWordObj = shuffledWordList[currentIndex];
+
+            // Update Header Info
+            document.getElementById('progressText').innerText = `문제 ${currentIndex + 1} / ${shuffledWordList.length}`;
+            document.getElementById('progressBar').style.width = `${((currentIndex + 1) / shuffledWordList.length) * 100}%`;
+            document.getElementById('categoryTag').innerText = currentWordObj.category;
+            document.getElementById('koreanWord').innerText = currentWordObj.korean;
+
+            // Prepare word characters
+            const rawWord = currentWordObj.english; // e.g., "Class", "P.E.", "Homework"
+            const letters = rawWord.split('');
+
+            // Initialize Slots State
+            userSlots = letters.map(char => ({
+                targetChar: char,
+                currentChar: null,
+                blockId: null
+            }));
+
+            // Prepare Shuffle Blocks
+            const blockPool = letters.map((char, idx) => ({
+                id: `block-${idx}-${Math.random().toString(36).substr(2, 5)}`,
+                char: char,
+                colorClass: blockColors[Math.floor(Math.random() * blockColors.length)]
+            }));
+
+            // Shuffle letter blocks for current word
+            availableBlocks = shuffle(blockPool);
+
+            // Render UI
+            renderSlots();
+            renderBlocks();
+
+            // Automatically pronounce word when stage loads
+            setTimeout(() => {
+                speakCurrentWord();
+            }, 300);
+        }
+
+        // Render Empty Slots (빈칸 박스)
+        function renderSlots() {
+            const container = document.getElementById('slotsContainer');
+            container.innerHTML = '';
+
+            userSlots.forEach((slot, index) => {
+                const slotDiv = document.createElement('div');
+                
+                // 특수문자 (점 ., 공백 등) 처리
+                const isSpecial = (slot.targetChar === '.' || slot.targetChar === ' ');
+
+                if (isSpecial) {
+                    // 점이나 공백은 고정 표시
+                    slotDiv.className = 'w-8 h-14 md:w-12 md:h-16 flex items-end justify-center font-english font-bold text-2xl text-slate-600 pb-2';
+                    slotDiv.innerText = slot.targetChar;
+                    // Automatically mark special characters as filled in state logic if needed
+                    slot.currentChar = slot.targetChar;
+                } else {
+                    // Normal Blank Slot
+                    const isFilled = slot.currentChar !== null;
+                    slotDiv.className = `w-12 h-14 md:w-16 md:h-20 rounded-2xl border-3 border-dashed flex items-center justify-center font-english font-bold text-2xl md:text-3xl transition-all relative ${
+                        isFilled 
+                            ? 'border-solid border-amber-400 bg-white shadow-md slot-filled text-slate-800' 
+                            : 'border-amber-300 bg-amber-100/50 text-transparent'
+                    }`;
+
+                    slotDiv.dataset.index = index;
+
+                    if (isFilled) {
+                        // Find color of filled block
+                        const blockObj = slot.blockData;
+                        slotDiv.className = `w-12 h-14 md:w-16 md:h-20 rounded-2xl border-b-4 flex items-center justify-center font-english font-bold text-2xl md:text-3xl shadow-md cursor-pointer block-3d ${blockObj ? blockObj.colorClass : 'bg-white text-slate-800 border-slate-300'}`;
+                        slotDiv.innerText = slot.currentChar;
+
+                        // Click filled slot to remove block back to pool
+                        slotDiv.onclick = () => removeBlockFromSlot(index);
+                    } else {
+                        slotDiv.innerText = '?';
+                        slotDiv.classList.add('text-amber-300/60');
+                    }
+
+                    // Drag & Drop event listeners for slot
+                    slotDiv.ondragover = handleDragOver;
+                    slotDiv.ondragleave = handleDragLeave;
+                    slotDiv.ondrop = (e) => handleDrop(e, index);
+                }
+
+                container.appendChild(slotDiv);
+            });
+        }
+
+        // Render Available Letter Blocks Pool (하단 알파벳 블록)
+        function renderBlocks() {
+            const container = document.getElementById('blocksContainer');
+            container.innerHTML = '';
+
+            availableBlocks.forEach((block) => {
+                const blockBtn = document.createElement('div');
+                blockBtn.className = `w-12 h-14 md:w-16 md:h-16 rounded-2xl border-b-4 flex items-center justify-center font-english font-bold text-2xl md:text-3xl cursor-grab active:cursor-grabbing block-3d shadow-md transition transform hover:-translate-y-1 ${block.colorClass}`;
+                blockBtn.innerText = block.char;
+                blockBtn.id = block.id;
+                blockBtn.setAttribute('draggable', 'true');
+
+                // Drag Events
+                blockBtn.ondragstart = (e) => handleDragStart(e, block);
+                blockBtn.ondragend = handleDragEnd;
+
+                // Click event (for mobile or easy tapping)
+                blockBtn.onclick = () => handleBlockClick(block);
+
+                container.appendChild(blockBtn);
+            });
+
+            if (availableBlocks.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">모든 블록을 빈칸에 배치했습니다!</span>`;
+            }
+        }
+
+        // --- Interaction Handlers ---
+
+        let draggedBlock = null;
+
+        function handleDragStart(e, block) {
+            draggedBlock = block;
+            e.dataTransfer.setData('text/plain', block.id);
+            e.target.classList.add('opacity-40', 'scale-95');
+            playSound('click');
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('opacity-40', 'scale-95');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('slot-hover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('slot-hover');
+        }
+
+        function handleDrop(e, slotIndex) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('slot-hover');
+
+            if (!draggedBlock) return;
+
+            // Place dragged block into slotIndex
+            placeBlockInSlot(draggedBlock, slotIndex);
+            draggedBlock = null;
+        }
+
+        // Click block to automatically place in the first empty slot
+        function handleBlockClick(block) {
+            // Find first empty slot (ignoring special chars like '.')
+            const emptySlotIndex = userSlots.findIndex(s => s.currentChar === null && s.targetChar !== '.' && s.targetChar !== ' ');
+            if (emptySlotIndex !== -1) {
+                playSound('pop');
+                placeBlockInSlot(block, emptySlotIndex);
+            }
+        }
+
+        // Logic: Place block into slot
+        function placeBlockInSlot(block, slotIndex) {
+            // If the slot already has a block, return existing block to pool first
+            if (userSlots[slotIndex].currentChar !== null) {
+                removeBlockFromSlot(slotIndex, false);
+            }
+
+            // Remove block from available pool
+            availableBlocks = availableBlocks.filter(b => b.id !== block.id);
+
+            // Put into slot
+            userSlots[slotIndex].currentChar = block.char;
+            userSlots[slotIndex].blockId = block.id;
+            userSlots[slotIndex].blockData = block;
+
+            renderSlots();
+            renderBlocks();
+
+            // Check if word complete
+            checkWordCompletion();
+        }
+
+        // Logic: Remove block from slot back to pool
+        function removeBlockFromSlot(slotIndex, shouldRender = true) {
+            const slot = userSlots[slotIndex];
+            if (!slot || !slot.currentChar) return;
+
+            playSound('pop');
+
+            // Add block back to available pool
+            if (slot.blockData) {
+                availableBlocks.push(slot.blockData);
+            }
+
+            // Clear slot
+            slot.currentChar = null;
+            slot.blockId = null;
+            slot.blockData = null;
+
+            if (shouldRender) {
+                renderSlots();
+                renderBlocks();
+            }
+        }
+
+        // Reset current slots
+        function resetCurrentSlots() {
+            playSound('click');
+            loadStage();
+        }
+
+        // Provide Hint: Auto-fills the first incorrect/empty slot correctly
+        function giveHint() {
+            playSound('click');
+            // Find first empty or wrong slot
+            const targetIdx = userSlots.findIndex(s => s.targetChar !== '.' && s.targetChar !== ' ' && s.currentChar !== s.targetChar);
+
+            if (targetIdx !== -1) {
+                const correctChar = userSlots[targetIdx].targetChar;
+                
+                // If there was a wrong block filled in this slot, remove it
+                if (userSlots[targetIdx].currentChar !== null) {
+                    removeBlockFromSlot(targetIdx, false);
+                }
+
+                // Find block with correct character in available pool
+                const matchingBlockIdx = availableBlocks.findIndex(b => b.char === correctChar);
+
+                if (matchingBlockIdx !== -1) {
+                    const blockToUse = availableBlocks[matchingBlockIdx];
+                    placeBlockInSlot(blockToUse, targetIdx);
+                }
+            }
+        }
+
+        // Check if all slots are filled and verify answer
+        function checkWordCompletion() {
+            // Check if any slot is still null
+            const isAllFilled = userSlots.every(s => s.currentChar !== null);
+
+            if (!isAllFilled) return;
+
+            // Form user's built string
+            const userWord = userSlots.map(s => s.currentChar).join('');
+            const targetWord = currentWordObj.english;
+
+            if (userWord === targetWord) {
+                // CORRECT!
+                handleCorrectAnswer();
+            } else {
+                // WRONG!
+                handleWrongAnswer();
+            }
+        }
+
+        // Handle Correct Answer
+        function handleCorrectAnswer() {
+            playSound('correct');
+            combo++;
+            if (combo > maxCombo) maxCombo = combo;
+
+            // Score calculation
+            const stageScore = 100 + (combo * 20);
+            score += stageScore;
+            updateScoreUI();
+
+            // Trigger Confetti Effect
+            try {
+                confetti({
+                    particleCount: 50,
+                    spread: 60,
+                    origin: { y: 0.7 }
+                });
+            } catch(e){}
+
+            // Pronounce again upon success
+            speakCurrentWord();
+
+            // Highlight slots briefly with green success border
+            const slotElements = document.querySelectorAll('#slotsContainer > div');
+            slotElements.forEach(el => {
+                el.classList.add('bg-emerald-100', 'border-emerald-500', 'text-emerald-700');
+            });
+
+            // Advance to next stage after short delay
+            setTimeout(() => {
+                currentIndex++;
+                loadStage();
+            }, 1200);
+        }
+
+        // Handle Wrong Answer
+        function handleWrongAnswer() {
+            playSound('wrong');
+            combo = 0; // Reset combo
+            updateComboUI();
+
+            // Shake slots animation
+            const container = document.getElementById('slotsContainer');
+            container.classList.add('shake');
+
+            setTimeout(() => {
+                container.classList.remove('shake');
+            }, 600);
+        }
+
+        // Update Score & Combo UI
+        function updateScoreUI() {
+            document.getElementById('scoreText').innerText = score;
+            updateComboUI();
+        }
+
+        function updateComboUI() {
+            const comboBadge = document.getElementById('comboBadge');
+            const comboCount = document.getElementById('comboCount');
+
+            if (combo >= 2) {
+                comboCount.innerText = combo;
+                comboBadge.classList.remove('hidden');
+            } else {
+                comboBadge.classList.add('hidden');
+            }
+        }
+
+        // Show Game Complete Modal
+        function showCompletionModal() {
+            playSound('correct');
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('maxComboText').innerText = `${maxCombo} COMBO`;
+            document.getElementById('completeModal').classList.remove('hidden');
+
+            try {
+                confetti({
+                    particleCount: 150,
+                    spread: 100,
+                    origin: { y: 0.5 }
+                });
+            } catch(e){}
+        }
+
+        // Restart Game from modal
+        function restartGame() {
+            document.getElementById('completeModal').classList.add('hidden');
+            initGame();
+        }
+
+        // Window Load Initialization
+        window.onload = function() {
+            initGame();
+        };
+    </script>
+</body>
+</html>
